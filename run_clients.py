@@ -61,7 +61,8 @@ class TorchtitanConfig:
             additional_setup=Path(data['additional_setup']) if data.get('additional_setup') else None,
             mixtera_server_config=Path(data['mixtera_server_config']),
             run_ident=data.get('run_ident', 'run'),
-            job_name=data.get('job_name', slurm_data['job_name'])
+            job_name=data.get('job_name', slurm_data['job_name']),
+            mixtera_dir=Path(data["mixtera_dir"])
         )
 
         return torchtitan_config
