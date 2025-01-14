@@ -16,7 +16,6 @@ slurm:
   job_name: 'torchtitan_experiment'
   time: '12:00:00'
   partition: 'normal'
-  account: 'default'
   environment: torchtitan
   ntasks_per_node: 1
   gpus_per_task: 4
