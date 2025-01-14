@@ -1,5 +1,6 @@
 import argparse
 import os
+import yaml
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -19,6 +20,33 @@ class MixteraServerConfig:
     server_dir: Path
     mixtera_dir: Path
     port: int
+
+    @classmethod
+    def from_yaml(cls, path: str) -> 'MixteraServerConfig':
+        with open(path, 'r') as f:
+            data = yaml.safe_load(f)
+        
+        # Parse the 'slurm' section
+        slurm_data = data.get('slurm', {})
+        slurm_config = MixteraSlurmConfig(
+            job_name=slurm_data['job_name'],
+            log_dir=Path(slurm_data['log_dir']),
+            partition=slurm_data['partition'],
+            ntasks_per_node=slurm_data['ntasks_per_node'],
+            gpus_per_task=slurm_data['gpus_per_task'],
+            time=slurm_data['time'],
+            cpus_per_task=slurm_data['cpus_per_task'],
+            environment=slurm_data['environment']
+        )
+
+        # Create the server config
+        server_config = cls(
+            slurm=slurm_config,
+            server_dir=Path(data['server_dir']),
+            mixtera_dir=Path(data['mixtera_dir']),
+            port=data['port']
+        )
+        return server_config
 
 def run_mixtera_server(config: MixteraServerConfig) -> None:
     sbatch_header = f"""#!/bin/bash
