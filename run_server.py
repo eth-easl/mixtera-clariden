@@ -52,6 +52,7 @@ def run_mixtera_server(config: MixteraServerConfig) -> None:
     sbatch_header = f"""#!/bin/bash
 #SBATCH --job-name={config.slurm.job_name}
 #SBATCH --output={config.slurm.log_dir}/%j.out
+#SBATCH --error={config.slurm.log_dir}/%j.err
 #SBATCH --environment={config.slurm.environment}
 #SBATCH --partition={config.slurm.partition}
 #SBATCH --ntasks-per-node={config.slurm.ntasks_per_node}

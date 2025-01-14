@@ -1,0 +1,23 @@
+job_name: 'torchtitan_experiment'
+run_ident: 'run1'
+torchtitan_src: '/users/mbther/torchtitan-mixtera'
+torchtitan_logs: '/iopsstor/scratch/cscs/mbther/logs/torchtitan'
+config_file: '/users/mbther/torchtitan-mixtera/train_configs/ado_test.toml'
+mixtera_server_config: 'mixtera_server.yaml'
+mixtera_dir: /users/mbther/mixtera
+environment_vars:
+  LOGLEVEL: 'DEBUG'
+  PYTHONFAULTHANDLER: '1'
+  NCCL_DEBUG: 'WARN'
+  LD_LIBRARY_PATH: '/usr/local/lib/:$LD_LIBRARY_PATH'
+  CUDA_LAUNCH_BLOCKING: '0'
+
+slurm:
+  job_name: 'torchtitan_experiment'
+  time: '12:00:00'
+  partition: 'normal'
+  account: 'default'
+  environment: torchtitan
+  ntasks_per_node: 1
+  gpus_per_task: 4
+  nodes: 1
