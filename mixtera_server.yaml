@@ -1,0 +1,10 @@
+slurm:
+  job_name: mixtera_server
+  log_dir: /iopsstor/scratch/cscs/mbther/logs/server
+  partition: normal
+  ntasks_per_node: 1
+  gpus_per_task: 4
+  time: 05:59:00
+server_dir: /iopsstor/scratch/cscs/mbther/mixteratmp
+mixtera_dir: /users/mbther/mixtera
+port: 8088
