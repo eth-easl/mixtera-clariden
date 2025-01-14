@@ -56,6 +56,7 @@ def run_mixtera_server(config: MixteraServerConfig) -> None:
 #SBATCH --partition={config.slurm.partition}
 #SBATCH --ntasks-per-node={config.slurm.ntasks_per_node}
 #SBATCH --gpus-per-task={config.slurm.gpus_per_task}
+#SBATCH --nodes=1
 #SBATCH --time={config.slurm.time}\n
 """
     
