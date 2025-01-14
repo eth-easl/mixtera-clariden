@@ -5,6 +5,7 @@ torchtitan_logs: '/iopsstor/scratch/cscs/mbther/logs/torchtitan'
 config_file: '/users/mbther/torchtitan-mixtera/train_configs/ado_test.toml'
 mixtera_server_config: 'mixtera_server.yaml'
 mixtera_dir: /users/mbther/mixtera
+environment: torchtitan
 environment_vars:
   LOGLEVEL: 'DEBUG'
   PYTHONFAULTHANDLER: '1'
