@@ -47,7 +47,8 @@ class TorchtitanConfig:
             ntasks_per_node=slurm_data['ntasks_per_node'],
             gpus_per_task=slurm_data['gpus_per_task'],
             nodes=slurm_data['nodes'],
-            exclude=slurm_data.get('exclude')
+            exclude=slurm_data.get('exclude'),
+            environment=slurm_data['environment']
         )
 
         # Create the torchtitan config
