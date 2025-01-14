@@ -13,6 +13,7 @@ class MixteraSlurmConfig:
     ntasks_per_node: int
     gpus_per_task: int
     time: str
+    environment: str
 
 @dataclass
 class MixteraServerConfig:
@@ -35,7 +36,6 @@ class MixteraServerConfig:
             ntasks_per_node=slurm_data['ntasks_per_node'],
             gpus_per_task=slurm_data['gpus_per_task'],
             time=slurm_data['time'],
-            gpus_per_task=slurm_data['gpus_per_task'],
             environment=slurm_data['environment']
         )
 
