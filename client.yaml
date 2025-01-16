@@ -11,7 +11,8 @@ environment_vars:
   NCCL_DEBUG: 'WARN'
   LD_LIBRARY_PATH: '/usr/local/lib/:$LD_LIBRARY_PATH'
   CUDA_LAUNCH_BLOCKING: '0'
-
+  OMP_NUM_THREADS: '64'
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True'
 slurm:
   job_name: 'torchtitan_experiment'
   time: '12:00:00'

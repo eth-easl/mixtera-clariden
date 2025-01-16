@@ -134,7 +134,24 @@ echo Node IP: $head_node_ip
     torchrun_cmd = f"""
 srun -ul --container-writable --environment={config.slurm.environment} bash -c "
 pushd {config.mixtera_dir}
-pip install -e .
+n=0
+
+until [ \$n -ge 5 ]
+do
+   if pip install -e .; then
+      echo 'pip install succeeded after try ('\$n')'
+      break
+   else
+      n=\$((\$n+1))
+      echo 'pip install failed, retrying ('\$n')'
+      sleep 1
+   fi
+done
+if [ \$n -ge 5 ]; then
+   echo 'pip install failed after 5 retries'
+   exit 1
+fi
+
 popd
 numactl --membind=0-3 torchrun --nnodes={config.slurm.nodes} --nproc_per_node={total_gpus_per_node} --rdzv_backend c10d --rdzv_endpoint '$head_node_ip:29500' {config.torchtitan_src}/train.py --job.config_file {config.config_file} --mixtera.ip {config.mixtera_ip} --mixtera.port {config.mixtera_port}
 "
