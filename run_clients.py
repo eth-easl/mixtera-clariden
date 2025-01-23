@@ -76,7 +76,7 @@ class TorchtitanConfig:
         
         # Get the server_ip.txt path from mixtera_server_data['slurm']['log_dir']
         mixtera_slurm_log_dir = Path(mixtera_server_data['slurm']['log_dir'])
-        server_ip_file = mixtera_slurm_log_dir / 'server_ip.txt'
+        server_ip_file = mixtera_slurm_log_dir / f'server_ip_{mixtera_server_data['slurm']['job_name']}.txt'
         
         # Read the server IP from the file
         if server_ip_file.exists():

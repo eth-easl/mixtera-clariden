@@ -64,7 +64,7 @@ def run_mixtera_server(config: MixteraServerConfig) -> None:
     server_setup_cmd = "\nexport SERVER_IP=$(hostname)\n"
     server_setup_cmd += f"export SERVER_DIR={config.server_dir}\n"
     server_setup_cmd += f"export SERVER_PORT={config.port}\n"
-    server_setup_cmd += f"\necho $SERVER_IP > {config.slurm.log_dir}/server_ip.txt\n"
+    server_setup_cmd += f"\necho $SERVER_IP > {config.slurm.log_dir}/server_ip_{config.slurm.job_name}.txt\n"
     server_setup_cmd += f"\npushd {config.mixtera_dir} && pip install -e . && popd"
 
     # No need to call srun here because we only need a single node for the server
