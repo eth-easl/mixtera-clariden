@@ -15,7 +15,7 @@ environment_vars:
   PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True'
 slurm:
   job_name: 'torchtitan_experiment'
-  time: '12:00:00'
+  time: '23:59:00'
   partition: 'normal'
   environment: torchtitan
   ntasks_per_node: 1

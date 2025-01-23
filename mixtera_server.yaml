@@ -4,7 +4,7 @@ slurm:
   partition: normal
   ntasks_per_node: 1
   gpus_per_task: 4
-  time: 05:59:00
+  time: 23:59:00
   environment: torchtitan
 server_dir: /iopsstor/scratch/cscs/mbther/mixteratmp
 mixtera_dir: /users/mbther/mixtera
