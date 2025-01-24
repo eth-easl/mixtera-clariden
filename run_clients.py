@@ -1,9 +1,11 @@
 import argparse
 import os
+import subprocess
 import yaml
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional
+
 
 @dataclass
 class SlurmConfig:
@@ -16,6 +18,7 @@ class SlurmConfig:
     nodes: int
     exclude: Optional[str]
     environment: str
+
 
 @dataclass
 class TorchtitanConfig:
@@ -33,57 +36,82 @@ class TorchtitanConfig:
     mixtera_port: Optional[int] = None  # To be filled from mixtera server config
 
     @classmethod
-    def from_yaml(cls, path: str) -> 'TorchtitanConfig':
-        with open(path, 'r') as f:
+    def from_yaml(cls, path: str) -> "TorchtitanConfig":
+        with open(path, "r") as f:
             data = yaml.safe_load(f)
 
         # Parse the 'slurm' section
-        slurm_data = data.get('slurm', {})
+        slurm_data = data.get("slurm", {})
         slurm_config = SlurmConfig(
-            job_name=slurm_data['job_name'],
-            time=slurm_data['time'],
-            partition=slurm_data['partition'],
-            account=slurm_data.get('account'),
-            ntasks_per_node=slurm_data['ntasks_per_node'],
-            gpus_per_task=slurm_data['gpus_per_task'],
-            nodes=slurm_data['nodes'],
-            exclude=slurm_data.get('exclude'),
-            environment=slurm_data['environment']
+            job_name=slurm_data["job_name"],
+            time=slurm_data["time"],
+            partition=slurm_data["partition"],
+            account=slurm_data.get("account"),
+            ntasks_per_node=slurm_data["ntasks_per_node"],
+            gpus_per_task=slurm_data["gpus_per_task"],
+            nodes=slurm_data["nodes"],
+            exclude=slurm_data.get("exclude"),
+            environment=slurm_data["environment"],
         )
 
         # Create the torchtitan config
         torchtitan_config = cls(
             slurm=slurm_config,
-            torchtitan_src=Path(data['torchtitan_src']),
-            torchtitan_logs=Path(data['torchtitan_logs']),
-            config_file=Path(data['config_file']),
-            environment_vars=data.get('environment_vars', {}),
-            additional_setup=Path(data['additional_setup']) if data.get('additional_setup') else None,
-            mixtera_server_config=Path(data['mixtera_server_config']),
-            run_ident=data.get('run_ident', 'run'),
-            job_name=data.get('job_name', slurm_data['job_name']),
-            mixtera_dir=Path(data["mixtera_dir"])
+            torchtitan_src=Path(data["torchtitan_src"]),
+            torchtitan_logs=Path(data["torchtitan_logs"]),
+            config_file=Path(data["config_file"]),
+            environment_vars=data.get("environment_vars", {}),
+            additional_setup=Path(data["additional_setup"])
+            if data.get("additional_setup")
+            else None,
+            mixtera_server_config=Path(data["mixtera_server_config"]),
+            run_ident=data.get("run_ident", "run"),
+            job_name=data.get("job_name", slurm_data["job_name"]),
+            mixtera_dir=Path(data["mixtera_dir"]),
         )
 
         return torchtitan_config
 
     def load_mixtera_server_info(self):
-        with open(self.mixtera_server_config, 'r') as f:
+        with open(self.mixtera_server_config, "r") as f:
             mixtera_server_data = yaml.safe_load(f)
-        
+
         # Get the port
-        self.mixtera_port = mixtera_server_data['port']
-        
+        self.mixtera_port = mixtera_server_data["port"]
+
         # Get the server_ip.txt path from mixtera_server_data['slurm']['log_dir']
-        mixtera_slurm_log_dir = Path(mixtera_server_data['slurm']['log_dir'])
-        server_ip_file = mixtera_slurm_log_dir / f'server_ip_{mixtera_server_data['slurm']['job_name']}.txt'
-        
+        mixtera_slurm_log_dir = Path(mixtera_server_data["slurm"]["log_dir"])
+        server_ip_file = (
+            mixtera_slurm_log_dir
+            / f'server_ip_{mixtera_server_data['slurm']['job_name']}.txt'
+        )
+
         # Read the server IP from the file
         if server_ip_file.exists():
-            with open(server_ip_file, 'r') as ip_file:
+            with open(server_ip_file, "r") as ip_file:
                 self.mixtera_ip = ip_file.read().strip()
         else:
-            raise FileNotFoundError(f"Could not find Mixtera server IP file at {server_ip_file}")
+            raise FileNotFoundError(
+                f"Could not find Mixtera server IP file at {server_ip_file}"
+            )
+
+
+def get_no_conda_env():
+    env = os.environ.copy()
+
+    conda_prefix = env.get("CONDA_PREFIX", "")
+    conda_bin = os.path.join(conda_prefix, "bin")
+
+    keys_to_remove = [key for key in env if "CONDA" in key or "PYTHON" in key]
+    for key in keys_to_remove:
+        del env[key]
+
+    paths = env["PATH"].split(os.pathsep)
+    paths = [p for p in paths if conda_bin not in p and conda_prefix not in p]
+    env["PATH"] = os.pathsep.join(paths)
+
+    return env
+
 
 def build_sbatch_script(config: TorchtitanConfig, log_dir: Path) -> str:
     output_file = log_dir / "output.log"
@@ -117,7 +145,7 @@ def build_sbatch_script(config: TorchtitanConfig, log_dir: Path) -> str:
     # Additional setup commands if any
     additional_setup = ""
     if config.additional_setup and config.additional_setup.exists():
-        with open(config.additional_setup, 'r') as f:
+        with open(config.additional_setup, "r") as f:
             additional_setup = f.read()
 
     # Build the commands to get the head node IP (taken from torchtitan repo)
@@ -157,13 +185,27 @@ numactl --membind=0-3 torchrun --nnodes={config.slurm.nodes} --nproc_per_node={t
 "
 """
 
-    sbatch_script = sbatch_header + env_var_lines + "\n" + additional_setup + "\n" + sbatch_body + "\n" + torchrun_cmd
+    sbatch_script = (
+        sbatch_header
+        + env_var_lines
+        + "\n"
+        + additional_setup
+        + "\n"
+        + sbatch_body
+        + "\n"
+        + torchrun_cmd
+    )
 
     return sbatch_script
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Torchtitan training launcher with Mixtera.")
-    parser.add_argument("config_path", type=str, help="Path to the launcher configuration file.")
+    parser = argparse.ArgumentParser(
+        description="Torchtitan training launcher with Mixtera."
+    )
+    parser.add_argument(
+        "config_path", type=str, help="Path to the launcher configuration file."
+    )
     args = parser.parse_args()
 
     # Load the configuration
@@ -183,15 +225,19 @@ def main():
 
     # Save sbatch script
     sbatch_file = log_dir / "run_torchtitan.sbatch"
-    with open(sbatch_file, 'w') as f:
+    with open(sbatch_file, "w") as f:
         f.write(sbatch_script)
     print(f"SBATCH script saved to: {sbatch_file}")
 
     # Submit the sbatch script
-    cmd = f"sbatch {sbatch_file}"
-    print(f"Submitting job with command: {cmd}")
-    output = os.popen(cmd).read()
-    print(f"Job submission output:\n{output}")
+    print(f"Submitting job for {sbatch_file}")
+
+    proc = subprocess.run(
+        ["sbatch", sbatch_file], capture_output=True, text=True, env=get_no_conda_env()
+    )
+
+    print(f"Job submission output:\n{proc.stdout}")
+
 
 if __name__ == "__main__":
     main()
