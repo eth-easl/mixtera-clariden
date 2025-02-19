@@ -126,6 +126,7 @@ def build_sbatch_script(config: TorchtitanConfig, log_dir: Path) -> str:
 #SBATCH --output={output_file}
 #SBATCH --error={error_file}
 #SBATCH --gpus-per-task={config.slurm.gpus_per_task}
+#SBATCH --account=A-a09
 """
 
     if config.slurm.account:
