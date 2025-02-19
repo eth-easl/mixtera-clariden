@@ -9,7 +9,6 @@ from typing import Literal, Optional
 
 @dataclass
 class SlurmConfig:
-    job_name: str
     time: str
     partition: str
     account: Optional[str]
@@ -18,6 +17,7 @@ class SlurmConfig:
     nodes: int
     exclude: Optional[str]
     environment: str
+    account: str
 
 
 @dataclass
@@ -43,7 +43,6 @@ class TorchtitanConfig:
         # Parse the 'slurm' section
         slurm_data = data.get("slurm", {})
         slurm_config = SlurmConfig(
-            job_name=slurm_data["job_name"],
             time=slurm_data["time"],
             partition=slurm_data["partition"],
             account=slurm_data.get("account"),
@@ -52,6 +51,7 @@ class TorchtitanConfig:
             nodes=slurm_data["nodes"],
             exclude=slurm_data.get("exclude"),
             environment=slurm_data["environment"],
+            account=slurm_data["account"]
         )
 
         # Create the torchtitan config
@@ -66,7 +66,7 @@ class TorchtitanConfig:
             else None,
             mixtera_server_config=Path(data["mixtera_server_config"]),
             run_ident=data.get("run_ident", "run"),
-            job_name=data.get("job_name", slurm_data["job_name"]),
+            job_name=data.get("job_name", "training_job"),
             mixtera_dir=Path(data["mixtera_dir"]),
         )
 
@@ -119,14 +119,14 @@ def build_sbatch_script(config: TorchtitanConfig, log_dir: Path) -> str:
 
     # Build the SBATCH header
     sbatch_header = f"""#!/bin/bash
-#SBATCH --job-name={config.slurm.job_name}
+#SBATCH --job-name={config.job_name}_{config.run_ident}
 #SBATCH --nodes={config.slurm.nodes}
 #SBATCH --ntasks-per-node={config.slurm.ntasks_per_node}
 #SBATCH --time={config.slurm.time}
 #SBATCH --output={output_file}
 #SBATCH --error={error_file}
 #SBATCH --gpus-per-task={config.slurm.gpus_per_task}
-#SBATCH --account=A-a09
+#SBATCH --account={config.slurm.account}
 """
 
     if config.slurm.account:

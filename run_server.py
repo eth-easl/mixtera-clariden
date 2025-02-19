@@ -16,6 +16,7 @@ class MixteraSlurmConfig:
     gpus_per_task: int
     time: str
     environment: str
+    account: str
 
 
 @dataclass
@@ -40,6 +41,7 @@ class MixteraServerConfig:
             gpus_per_task=slurm_data["gpus_per_task"],
             time=slurm_data["time"],
             environment=slurm_data["environment"],
+            account=slurm_data["account"]
         )
 
         # Create the server config
@@ -79,7 +81,7 @@ def run_mixtera_server(config: MixteraServerConfig) -> None:
 #SBATCH --ntasks-per-node={config.slurm.ntasks_per_node}
 #SBATCH --gpus-per-task={config.slurm.gpus_per_task}
 #SBATCH --nodes=1
-#SBATCH --account=a-a06
+#SBATCH --account={config.slurm.account}
 #SBATCH --time={config.slurm.time}\n
 """
 
