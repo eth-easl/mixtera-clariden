@@ -1,0 +1,11 @@
+slurm:
+  job_name: mixtera_server
+  log_dir: /iopsstor/scratch/cscs/mbther/ado/server_default_logs
+  partition: normal
+  ntasks_per_node: 1
+  gpus_per_task: 4
+  time: "02:59:00"
+  environment: torchtitan
+server_dir: /iopsstor/scratch/cscs/mbther/benchmark_mixtera_server/parquet
+mixtera_dir: /iopsstor/scratch/cscs/mbther/mixtera 
+port: 8088
