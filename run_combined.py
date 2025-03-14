@@ -167,10 +167,22 @@ def build_sbatch_script(config: CombinedConfig) -> str:
     node_setup = f"""
 # Get node information
 nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )
-nodes_array=($nodes)
+
+echo "All nodes: ${{nodes[@]}}"
+echo "Node count: ${{#nodes[@]}}"
+
+nodes_array=("${{nodes[@]}}")
+total_nodes=${{#nodes_array[@]}}
+echo "total_nodes: ${{total_nodes}}"
+
 head_node=${{nodes_array[0]}}
 head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)
 echo "Server node: $head_node, IP: $head_node_ip"
+
+# Get client head node (first client node) for C10D
+client_head_node=${{nodes_array[1]}}
+client_head_ip=$(srun --nodes=1 --ntasks=1 -w "$client_head_node" hostname --ip-address)
+echo "Client head node: $client_head_node, IP: $client_head_ip"
 
 # Create server log file paths with actual job ID
 server_log_file="{server_log_dir}/server_{config.server_config.slurm.job_name}_$SLURM_JOB_ID.log"
@@ -186,17 +198,27 @@ client_err_file="{client_log_dir}/output.err"
 # Start server on the first node with log redirection
 echo "Starting server, logs will be written to $server_log_file"
 srun --nodes=1 --ntasks=1 -w "$head_node" --environment={config.server_config.slurm.environment} bash -c "
-export SERVER_IP=$head_node_ip
-export SERVER_DIR={config.server_config.server_dir}
-export SERVER_PORT={config.server_config.port}
-pushd {config.server_config.mixtera_dir} && pip install -e . && popd
-numactl --membind=0-3 python -u -m mixtera.network.server.entrypoint $SERVER_DIR --host $SERVER_IP --port $SERVER_PORT
+set -x
+echo 'Server starting on node: $(hostname)'
+echo 'Server directory: {config.server_config.server_dir}'
+echo 'Server port: {config.server_config.port}'
+echo 'Host IP: '$head_node_ip
+
+pushd {config.server_config.mixtera_dir}
+echo 'Installing mixtera package...'
+pip install -e .
+popd
+
+echo 'Running server:'
+CMD='numactl --membind=0-3 python -u -m mixtera.network.server.entrypoint --host '$head_node_ip' --port {config.server_config.port} {config.server_config.server_dir}'
+echo \$CMD
+eval \$CMD
 " > $server_log_file 2> $server_err_file &
 SERVER_PID=$!
 
 # Give server time to start and initialize
 echo "Waiting for server to initialize..."
-sleep 30
+sleep 45
 """
 
     # Client setup and execution with redirected output
@@ -208,8 +230,13 @@ sleep 30
 # Start clients on remaining nodes (all nodes except the first one)
 client_nodes={client_nodes}
 echo "Starting clients on $client_nodes nodes, logs will be written to $client_log_file"
+set -x
 
 srun --nodes=$client_nodes --ntasks=$client_nodes --relative=1 --environment={config.server_config.slurm.environment} bash -c "
+echo 'Client starting on node: $(hostname)'
+echo 'Using C10D head node: $client_head_node ($client_head_ip)'
+echo 'Using Mixtera server: $head_node_ip:{config.server_config.port}'
+
 pushd {config.client_config.mixtera_dir}
 n=0
 
@@ -230,13 +257,47 @@ if [ \\$n -ge 5 ]; then
 fi
 
 popd
-numactl --membind=0-3 torchrun --nnodes=$client_nodes --nproc_per_node={total_gpus_per_node} --rdzv_backend c10d --rdzv_endpoint '$head_node_ip:29500' {config.client_config.torchtitan_src}/train.py --job.config_file {config.client_config.config_file} --mixtera.ip $head_node_ip --mixtera.port {config.server_config.port}
+echo 'Running client with torchrun:'
+CMD='numactl --membind=0-3 torchrun --nnodes=$client_nodes --nproc_per_node={total_gpus_per_node} --rdzv_backend c10d --rdzv_endpoint $client_head_ip:29500 {config.client_config.torchtitan_src}/train.py --job.config_file {config.client_config.config_file} --mixtera.ip '$head_node_ip' --mixtera.port {config.server_config.port}'
+echo \$CMD
+eval \$CMD
 " > $client_log_file 2> $client_err_file &
 CLIENT_PID=$!
 
-# Wait for all processes to complete
-echo "All processes started, waiting for completion..."
-wait $SERVER_PID $CLIENT_PID
+echo "Waiting for client processes to complete..."
+wait $CLIENT_PID
+echo "Client processes completed, waiting 2 minutes before stopping server..."
+
+# Wait 2 minutes to allow the server to complete any final operations
+sleep 120
+
+# Check if server srun process is still running
+if kill -0 $SERVER_PID 2>/dev/null; then
+    echo "Server is still running after 2-minute grace period, terminating..."
+    
+    # First, try to signal the server srun process
+    kill $SERVER_PID
+    
+    # Also send cancellation to the Slurm job step for the server
+    SLURM_JOB_ID=$SLURM_JOB_ID
+    SERVER_STEP_ID=$(squeue --noheader --format=%i.%s --name=$SLURM_JOB_ID | grep "\\.0" | awk '{{print $1}}')
+    if [ ! -z "$SERVER_STEP_ID" ]; then
+        echo "Also cancelling server job step: $SERVER_STEP_ID"
+        scancel $SERVER_STEP_ID
+    fi
+    
+    # Give it a moment to shut down gracefully
+    sleep 10
+    
+    # Force kill if still running
+    if kill -0 $SERVER_PID 2>/dev/null; then
+        echo "Server didn't terminate gracefully, force killing..."
+        kill -9 $SERVER_PID
+    fi
+else
+    echo "Server has already completed"
+fi
+
 echo "All processes completed"
 """
 
