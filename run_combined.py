@@ -266,7 +266,9 @@ CLIENT_PID=$!
 
 echo "Waiting for client processes to complete..."
 wait $CLIENT_PID
-echo "Client processes completed, waiting 2 minutes before stopping server..."
+CLIENT_EXIT_CODE=$?
+echo "Client processes completed with exit code $CLIENT_EXIT_CODE, waiting 2 minutes before stopping server..."
+JOB_EXIT_CODE=$CLIENT_EXIT_CODE
 
 # Wait 2 minutes to allow the server to complete any final operations
 sleep 120
@@ -278,13 +280,10 @@ if kill -0 $SERVER_PID 2>/dev/null; then
     # First, try to signal the server srun process
     kill $SERVER_PID
     
-    # Also send cancellation to the Slurm job step for the server
-    SLURM_JOB_ID=$SLURM_JOB_ID
-    SERVER_STEP_ID=$(squeue --noheader --format=%i.%s --name=$SLURM_JOB_ID | grep "\\.0" | awk '{{print $1}}')
-    if [ ! -z "$SERVER_STEP_ID" ]; then
-        echo "Also cancelling server job step: $SERVER_STEP_ID"
-        scancel $SERVER_STEP_ID
-    fi
+    # Directly cancel the server job step without using squeue
+    # The main server process is likely running as step 0
+    echo "Attempting to cancel server job step: $SLURM_JOB_ID.0"
+    scancel $SLURM_JOB_ID.0
     
     # Give it a moment to shut down gracefully
     sleep 10
@@ -298,7 +297,8 @@ else
     echo "Server has already completed"
 fi
 
-echo "All processes completed"
+echo "All processes completed, job exit code: $JOB_EXIT_CODE"
+exit $JOB_EXIT_CODE
 """
 
     # Combine all parts
@@ -320,6 +320,7 @@ def main():
     )
     parser.add_argument("server_config_path", type=str, help="Path to the server configuration file.")
     parser.add_argument("client_config_path", type=str, help="Path to the client configuration file.")
+    parser.add_argument("--chained_jobs", type=int, default=1, help="Number of consecutive jobs to run, each dependent on the successful completion of the previous one.")
     args = parser.parse_args()
 
     # Load the server configuration
@@ -331,6 +332,7 @@ def main():
     # Extract Slurm configuration from client's config file
     with open(args.client_config_path, "r") as f:
         client_data = yaml.safe_load(f)
+
     slurm_data = client_data.get("slurm", {})
     client_slurm_config = MixteraSlurmConfig(
         job_name=slurm_data["job_name"],
@@ -368,16 +370,50 @@ def main():
     with open(sbatch_file, "w") as f:
         f.write(sbatch_script)
     print(f"SBATCH script saved to: {sbatch_file}")
-
-    # Submit the job
-    print(f"Submitting job: {sbatch_file}")
+    print(f"Submitting chain of {args.chained_jobs} jobs")
+    
+    # Submit first job
     proc = subprocess.run(
         ["sbatch", sbatch_file],
         env=get_no_conda_env(),
         capture_output=True,
         text=True
     )
-    print(f"Job submission output:\n{proc.stdout}")
+    
+    if proc.returncode != 0:
+        print(f"Error submitting first job: {proc.stderr}")
+        return
+    
+    # Extract job ID from first submission
+    try:
+        job_id = proc.stdout.strip().split()[-1]
+        print(f"Submitted job 1/{args.chained_jobs} with ID: {job_id}")
+    except (IndexError, ValueError):
+        print(f"Could not extract job ID from: {proc.stdout}")
+        return
+    
+    # Submit remaining jobs in the chain
+    prev_job_id = job_id
+    for i in range(2, args.chained_jobs + 1):
+        proc = subprocess.run(
+            ["sbatch", f"--dependency=afterok:{prev_job_id}", sbatch_file],
+            env=get_no_conda_env(),
+            capture_output=True,
+            text=True
+        )
+        
+        if proc.returncode != 0:
+            print(f"Error submitting job {i}: {proc.stderr}")
+            break
+        
+        try:
+            job_id = proc.stdout.strip().split()[-1]
+            print(f"Submitted job {i}/{args.chained_jobs} with ID: {job_id}, dependent on job {prev_job_id}")
+            prev_job_id = job_id
+        except (IndexError, ValueError):
+            print(f"Could not extract job ID from: {proc.stdout}")
+            break
+
 
 
 if __name__ == "__main__":
