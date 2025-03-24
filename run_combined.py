@@ -152,6 +152,26 @@ def build_sbatch_script(config: CombinedConfig) -> str:
     if config.server_config.slurm.exclude:
         sbatch_header += f"#SBATCH --exclude={config.server_config.slurm.exclude}\n"
 
+    timeout_setup = """
+
+    # Function to handle signals
+    handle_timeout() {
+        echo "Job received timeout signal - marking as timed out rather than failed"
+        echo "TIMED_OUT" > job_status.txt
+        exit 0
+    }
+
+    # Trap SIGUSR1 (sent by Slurm 60 seconds before timeout) and SIGTERM
+    trap 'handle_timeout' SIGUSR1 SIGTERM
+
+    # Create initial status file
+    echo "RUNNING" > job_status.txt
+
+    """
+        
+    sbatch_header = sbatch_header + timeout_setup
+
+
     # Environment variable definitions for client
     env_var_lines = "\n# Set environment variables for client\n"
     for var_name, value in config.client_config.environment_vars.items():
@@ -270,8 +290,29 @@ CLIENT_EXIT_CODE=$?
 echo "Client processes completed with exit code $CLIENT_EXIT_CODE, waiting 2 minutes before stopping server..."
 JOB_EXIT_CODE=$CLIENT_EXIT_CODE
 
-# Wait 2 minutes to allow the server to complete any final operations
-sleep 120
+# Wait 5 seconds to allow the server to complete any final operations
+sleep 5
+
+# Check if we're timing out or if there was a real failure
+if [ -f "job_status.txt" ] && [ "$(cat job_status.txt)" == "TIMED_OUT" ]; then
+    echo "Job is ending due to time limit, marking as success for chain to continue"
+    JOB_EXIT_CODE=0
+else
+    # If client failed for a real reason, not timeout
+    if [ $CLIENT_EXIT_CODE -ne 0 ]; then
+        echo "Client failed with error code $CLIENT_EXIT_CODE, breaking chain"
+        echo "FAILED" > job_status.txt
+        JOB_EXIT_CODE=$CLIENT_EXIT_CODE
+    else
+        echo "Client completed successfully"
+        echo "COMPLETED" > job_status.txt
+        JOB_EXIT_CODE=0
+    fi
+fi
+
+echo "Client status determined as: $(cat job_status.txt)"
+echo "Waiting 10 seconds before stopping server..."
+sleep 10
 
 # Check if server srun process is still running
 if kill -0 $SERVER_PID 2>/dev/null; then
@@ -286,7 +327,7 @@ if kill -0 $SERVER_PID 2>/dev/null; then
     scancel $SLURM_JOB_ID.0
     
     # Give it a moment to shut down gracefully
-    sleep 10
+    sleep 5
     
     # Force kill if still running
     if kill -0 $SERVER_PID 2>/dev/null; then
