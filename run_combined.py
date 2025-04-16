@@ -147,26 +147,48 @@ def build_sbatch_script(config: CombinedConfig) -> str:
 #SBATCH --account={config.server_config.slurm.account}
 #SBATCH --partition={config.server_config.slurm.partition}
 #SBATCH --environment={config.server_config.slurm.environment}
+#SBATCH --signal=B:SIGUSR1@250  # Send SIGUSR1 signal 250 seconds before timeout
 """
 
     if config.server_config.slurm.exclude:
         sbatch_header += f"#SBATCH --exclude={config.server_config.slurm.exclude}\n"
 
     timeout_setup = """
-
     # Function to handle signals
     handle_timeout() {
         echo "Job received timeout signal - marking as timed out rather than failed"
         echo "TIMED_OUT" > job_status.txt
-        exit 0
+
+        if [ ! -z "$CLIENT_PID" ] && kill -0 $CLIENT_PID 2>/dev/null; then
+            echo "Sending SIGTERM to client processes due to timeout"
+            kill $CLIENT_PID 2>/dev/null || true
+
+            # Schedule a force-kill after 45 seconds if the process is still running
+            (
+                sleep 45
+                if [ ! -z "$CLIENT_PID" ] && kill -0 $CLIENT_PID 2>/dev/null; then
+                    echo "Client process didn't terminate after 45 seconds, force killing with SIGKILL"
+                    kill -9 $CLIENT_PID 2>/dev/null || true
+                fi
+            ) &
+        fi
+
     }
 
-    # Trap SIGUSR1 (sent by Slurm 60 seconds before timeout) and SIGTERM
-    trap 'handle_timeout' SIGUSR1 SIGTERM
+    handle_termination() {
+        echo "Job received termination signal (SIGTERM) - marking for chain break"
+        echo "TERMINATED" > job_status.txt
+        exit 1  # Exit with error to break the chain
+    }
+
+    # Trap SIGUSR1 and SIGTERM
+    CLIENT_PID=""
+
+    trap 'handle_timeout' SIGUSR1
+    trap 'handle_termination' SIGTERM
 
     # Create initial status file
     echo "RUNNING" > job_status.txt
-
     """
         
     sbatch_header = sbatch_header + timeout_setup
@@ -209,8 +231,8 @@ server_log_file="{server_log_dir}/server_{config.server_config.slurm.job_name}_$
 server_err_file="{server_log_dir}/server_{config.server_config.slurm.job_name}_$SLURM_JOB_ID.err"
 
 # Create client log file paths
-client_log_file="{client_log_dir}/output.log"
-client_err_file="{client_log_dir}/output.err"
+client_log_file="{client_log_dir}/client_{config.client_config.job_name}_$SLURM_JOB_ID.log"
+client_err_file="{client_log_dir}/client_{config.client_config.job_name}_$SLURM_JOB_ID.err"
 """
 
     # Server setup and execution with redirected output
@@ -285,13 +307,13 @@ eval \$CMD
 CLIENT_PID=$!
 
 echo "Waiting for client processes to complete..."
-wait $CLIENT_PID
+wait $CLIENT_PID # this blocks until clients exit or our trap handler kills the clients.
+
 CLIENT_EXIT_CODE=$?
-echo "Client processes completed with exit code $CLIENT_EXIT_CODE, waiting 2 minutes before stopping server..."
+echo "Client processes completed with exit code $CLIENT_EXIT_CODE."
 JOB_EXIT_CODE=$CLIENT_EXIT_CODE
 
-# Wait 5 seconds to allow the server to complete any final operations
-sleep 5
+sleep 2
 
 # Check if we're timing out or if there was a real failure
 if [ -f "job_status.txt" ] && [ "$(cat job_status.txt)" == "TIMED_OUT" ]; then
@@ -311,8 +333,8 @@ else
 fi
 
 echo "Client status determined as: $(cat job_status.txt)"
-echo "Waiting 10 seconds before stopping server..."
-sleep 10
+echo "Waiting 120 seconds before stopping server to allow pending operations (e.g., checkpointing) to finish."
+sleep 120
 
 # Check if server srun process is still running
 if kill -0 $SERVER_PID 2>/dev/null; then
@@ -324,15 +346,17 @@ if kill -0 $SERVER_PID 2>/dev/null; then
     # Directly cancel the server job step without using squeue
     # The main server process is likely running as step 0
     echo "Attempting to cancel server job step: $SLURM_JOB_ID.0"
-    scancel $SLURM_JOB_ID.0
+    scancel $SLURM_JOB_ID.0 2>/dev/null || echo "scancel command failed, continuing with process-based termination"
     
     # Give it a moment to shut down gracefully
-    sleep 5
+    sleep 35
     
     # Force kill if still running
     if kill -0 $SERVER_PID 2>/dev/null; then
         echo "Server didn't terminate gracefully, force killing..."
         kill -9 $SERVER_PID
+    else
+        echo "Server gracefully terminated."
     fi
 else
     echo "Server has already completed"
