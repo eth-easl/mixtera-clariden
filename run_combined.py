@@ -300,7 +300,8 @@ fi
 
 popd
 echo 'Running client with torchrun:'
-CMD='numactl --membind=0-3 torchrun --nnodes=$client_nodes --nproc_per_node={total_gpus_per_node} --rdzv_backend c10d --rdzv_endpoint $client_head_ip:29500 {config.client_config.torchtitan_src}/train.py --job.config_file {config.client_config.config_file} --mixtera.ip '$head_node_ip' --mixtera.port {config.server_config.port}'
+cd {config.client_config.torchtitan_src}
+CMD='numactl --membind=0-3 torchrun --nnodes=$client_nodes --nproc_per_node={total_gpus_per_node} --rdzv_backend c10d --rdzv_endpoint $client_head_ip:29500 -m torchtitan.train --job.config_file {config.client_config.config_file} --mixtera.ip '$head_node_ip' --mixtera.port {config.server_config.port}'
 echo \$CMD
 eval \$CMD
 " > $client_log_file 2> $client_err_file &
