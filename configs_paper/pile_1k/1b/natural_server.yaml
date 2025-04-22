@@ -1,0 +1,12 @@
+slurm:
+  job_name: server_pile1k_1b_natural
+  log_dir: /iopsstor/scratch/cscs/mbther/ado/logs/server/pile1k_1b_natural
+  partition: normal
+  ntasks_per_node: 1
+  gpus_per_task: 4
+  time: "05:00:00"
+  environment: torchtitan
+  account: "a-a09"
+server_dir: /iopsstor/scratch/cscs/mbther/ado/mixteratmps_1k/1b_natural
+mixtera_dir: /iopsstor/scratch/cscs/mbther/ado/mixtera
+port: 8088
