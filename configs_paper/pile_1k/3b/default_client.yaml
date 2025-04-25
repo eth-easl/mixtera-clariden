@@ -1,0 +1,24 @@
+job_name: 'pile1k_3b_default'
+run_ident: 'run1'
+torchtitan_src: '/iopsstor/scratch/cscs/mbther/ado/torchtitan-mixtera'
+torchtitan_logs: '/iopsstor/scratch/cscs/mbther/ado/torchtitan-logs'
+config_file: '/iopsstor/scratch/cscs/mbther/ado/torchtitan-mixtera/torchtitan/models/llama3/train_configs/pile_1k/3b/default.toml'
+mixtera_server_config: '/users/mbther/mixtera-clariden/configs_paper/pile_1k/3b/default_server.yaml'
+mixtera_dir: '/iopsstor/scratch/cscs/mbther/ado/mixtera'
+environment_vars:
+  LOGLEVEL: 'DEBUG'
+  PYTHONFAULTHANDLER: '1'
+  NCCL_DEBUG: 'WARN'
+  LD_LIBRARY_PATH: '/usr/local/lib/:$LD_LIBRARY_PATH'
+  CUDA_LAUNCH_BLOCKING: '0'
+  OMP_NUM_THREADS: '64'
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True'
+slurm:
+  job_name: 'pile1k_3b_default'
+  time: '05:00:00'
+  partition: 'normal'
+  environment: torchtitan
+  ntasks_per_node: 1
+  gpus_per_task: 4
+  nodes: 32
+  account: 'a-a09'
