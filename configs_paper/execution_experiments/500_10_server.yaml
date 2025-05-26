@@ -1,12 +1,12 @@
 slurm:
-  job_name: 1000_5_server
-  log_dir: /iopsstor/scratch/cscs/mbther/execution_experiments/logs/1000_5
+  job_name: 500_10_server
+  log_dir: /iopsstor/scratch/cscs/mbther/execution_experiments/logs/500_10
   partition: normal
   ntasks_per_node: 1
   gpus_per_task: 4
   time: "08:00:00"
   environment: torchtitan
   account: "a-infra02"
-server_dir: /iopsstor/scratch/cscs/mbther/execution_experiments/mixteratmps/1000_5
+server_dir: /iopsstor/scratch/cscs/mbther/execution_experiments/mixteratmps/500_10
 mixtera_dir: /iopsstor/scratch/cscs/mbther/ado/mixtera
 port: 8088
