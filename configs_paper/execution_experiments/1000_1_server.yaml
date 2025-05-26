@@ -4,9 +4,9 @@ slurm:
   partition: normal
   ntasks_per_node: 1
   gpus_per_task: 4
-  time: "05:00:00"
+  time: "08:00:00"
   environment: torchtitan
-  account: "infra02"
+  account: "a-infra02"
 server_dir: /iopsstor/scratch/cscs/mbther/execution_experiments/mixteratmps/1000_1
 mixtera_dir: /iopsstor/scratch/cscs/mbther/ado/mixtera
 port: 8088
