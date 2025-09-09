@@ -9,4 +9,4 @@ slurm:
   account: "a-infra02"
 server_dir: /iopsstor/scratch/cscs/mbther/new/sigmod26_revision/ingestion_bm/servers/250_10_2000_max
 mixtera_dir:  /iopsstor/scratch/cscs/mbther/new/mixtera
-port: 8088a
+port: 8088
