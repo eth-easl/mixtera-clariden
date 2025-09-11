@@ -1,0 +1,12 @@
+slurm:
+  job_name: 100_1_2000_nomt_server
+  log_dir: /iopsstor/scratch/cscs/mbther/new/sigmod26_revision/ingestion_bm/logs/100_1_2000_nomt
+  partition: normal
+  ntasks_per_node: 1
+  gpus_per_task: 4
+  time: "03:00:00"
+  environment: torchtitan
+  account: "a-infra02"
+server_dir: /iopsstor/scratch/cscs/mbther/new/sigmod26_revision/ingestion_bm/servers/100_1_2000_nomt
+mixtera_dir:  /iopsstor/scratch/cscs/mbther/new/mixtera_nomtinsert
+port: 8088
